@@ -1,0 +1,59 @@
+---
+title: "ConvertPickletoRda"
+author: "Harry Clark"
+date: "04/04/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### ----------------------------------------------------------------------------------------------- ###
+
+## This code loads dataframes with spatial firing of neurons in the virtual reality
+
+Aim: We want to load dataframes from python output which are in pickled format, and save them in Rs dataframe format (.Rda). 
+
+### ----------------------------------------------------------------------------------------------- ###
+
+
+First we need to set up the python environment. This is so we can call a python script from R that loads the pickled dataframes and sends it back to the R workspace. 
+The python environment needs to be >v.3 as 2.7 (system python) doesn't have Pandas package which is needed to open dataframes
+
+To find the path in Linux use 'type -a python3' in the terminal.
+```{r}
+require(reticulate) # package that allows R to call python code
+Sys.setenv(RETICULATE_PYTHON = "C:\\Users\\harry\\anaconda3\\envs\\py38\\python.exe")
+```
+
+
+### ----------------------------------------------------------------------------------------------- ###
+
+### LOAD ALL MICE ALL DAYS DATAFRAMES
+
+### ----------------------------------------------------------------------------------------------- ###
+
+## Loading dataframe for all mice and days (all curated cells from one animal/multiple animals)
+
+1. load python code to load pickle dataframe
+```{r}
+source_python("picklereader.py") # run python script which loads the dataframes - should be in working directory
+```
+
+2. Load all cohorts, and necessary columns for analysis
+
+```{r}
+dataframe_to_load <- "data_in/Combined_df_for_R.pkl"  
+spatial_firing <- read_pickle_file(file.path(dataframe_to_load)) 
+#spatial_firing <- select(spatial_firing1,c('session_id', 'cluster_id'))
+```
+### ----------------------------------------------------------------------------------------------- ###
+
+### Save concatenated frames for future loading
+
+### ----------------------------------------------------------------------------------------------- ###
+6. Save final concatenated dataframe
+```{r}
+saveRDS(spatial_firing, file="grid_data.Rda")
+```
