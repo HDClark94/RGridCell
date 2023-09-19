@@ -44,9 +44,8 @@ source_python("picklereader.py") # run python script which loads the dataframes 
 2. Load all cohorts, and necessary columns for analysis
 
 ```{r}
-dataframe_to_load <- "data_in/Combined_df_for_R.pkl"  
-spatial_firing <- read_pickle_file(file.path(dataframe_to_load)) 
-#spatial_firing <- select(spatial_firing1,c('session_id', 'cluster_id'))
+dataframe_to_load <- "data_in/all_cells_for_R_longform.pkl"
+all_cells_for_R_longform <- read_pickle_file(file.path(dataframe_to_load)) 
 ```
 ### ----------------------------------------------------------------------------------------------- ###
 
@@ -55,5 +54,5 @@ spatial_firing <- read_pickle_file(file.path(dataframe_to_load))
 ### ----------------------------------------------------------------------------------------------- ###
 6. Save final concatenated dataframe
 ```{r}
-saveRDS(spatial_firing, file="grid_data.Rda")
+saveRDS(all_cells_for_R_longform, file="all_cells_for_R_longform.Rda")
 ```

@@ -1,6 +1,8 @@
 ```{r}
 # load packages
 # Load packages
+library(LaplacesDemon)
+library(sjPlot)
 library(tidyverse)
 library(broom)
 library(lme4)
@@ -23,16 +25,21 @@ library(cowplot)
 # library(glmmTMB)
 library(furrr)
 library(DHARMa)
+library(effects)
+library(haven) #for reading sav data
+library(jtools) #for transformaing model summaries
+library(ROCR) #for calculating area under the curve (AUC) statistics
 future::plan(multisession)
 
 ```
 
 # subset the data acccording to trial type
 ```{r}
+spatial_firing <- readRDS(file="all_cells_for_R_longform.Rda")
 
-spatial_firing <- readRDS(file="grid_data.Rda")
-
-spatial_firing$rolling_classifier <- replace(spatial_firing$rolling_classifier, spatial_firing$rolling_classifier == "nan", NA) 
+spatial_firing$rolling_classifier <- replace(spatial_firing$rolling_classifier, spatial_firing$rolling_classifier == "", NA)
+spatial_firing$rolling_classifier <- replace(spatial_firing$rolling_classifier, spatial_firing$rolling_classifier == "nan", NA)
+spatial_firing$rolling_classifier <- replace(spatial_firing$rolling_classifier, spatial_firing$rolling_classifier == "N", NA)
 spatial_firing <- na.omit(spatial_firing)
 
 beaconed_data <- spatial_firing[spatial_firing$trial_type == 0,]
@@ -42,8 +49,8 @@ probe_data <- spatial_firing[spatial_firing$trial_type == 2,]
 
 # set up the formulas
 ```{r}
-formula_full <- formula(hit ~ rolling_classifier + (1 + rolling_classifier | mouse_id / session_id / cluster_id))
-formula_null <- formula(hit ~ (1 + rolling_classifier | mouse_id / session_id / cluster_id))
+formula_full <- formula(hit ~ rolling_classifier + (1 | mouse_id / session_id / cluster_id) + (0 + rolling_classifier | mouse_id / session_id / cluster_id))
+formula_null <- formula(hit ~                      (1 | mouse_id / session_id / cluster_id) + (0 + rolling_classifier | mouse_id / session_id / cluster_id))
 ```
 
 
@@ -104,9 +111,56 @@ compare the full model with the null model
 ```{r}
 anova(probe_model_full,probe_model_null)
 ```
-```{r}
 
-write.csv(coef(beaconed_model_full)$cluster_id, "beaconed_coefs.csv", row.names=TRUE)
-write.csv(coef(non_beaconed_model_full)$cluster_id, "non_beaconed_coefs.csv", row.names=TRUE)
-write.csv(coef(probe_model_full)$cluster_id, "probe_coefs.csv", row.names=TRUE)
+```{r}
+plot_model(beaconed_model_full, show.values = TRUE)
+sjPlot:: tab_model(beaconed_model_full)
 ```
+
+```{r}
+plot_model(non_beaconed_model_full, show.values = TRUE)
+sjPlot:: tab_model(non_beaconed_model_full)
+```
+
+```{r}
+plot_model(probe_model_full, show.values = TRUE)
+sjPlot:: tab_model(probe_model_full)
+```
+
+
+#get the coeffients from the models
+```{r}
+beaconed_coefs = invlogit(coef(beaconed_model_full)$mouse_id)
+non_beaconed_coefs = invlogit(coef(non_beaconed_model_full)$mouse_id)
+probe_coefs = invlogit(coef(probe_model_full)$mouse_id)
+
+write.csv(beaconed_coefs, "beaconed_coefs.csv", row.names=TRUE)
+write.csv(non_beaconed_coefs, "non_beaconed_coefs.csv", row.names=TRUE)
+write.csv(probe_coefs, "probe_coefs.csv", row.names=TRUE)
+```
+
+```{r}
+names(beaconed_coefs)[names(beaconed_coefs) == "(Intercept)"] <- "intercept"
+names(non_beaconed_coefs)[names(non_beaconed_coefs) == "(Intercept)"] <- "intercept"
+names(probe_coefs)[names(probe_coefs) == "(Intercept)"] <- "intercept"
+```
+
+```{r}
+plot_model(beaconed_model_full, show.values = TRUE)
+sjPlot:: tab_model(non_beaconed_model_full)
+```
+```{r}
+ (mean(beaconed_coefs$intercept)+mean(beaconed_coefs$rolling_classifierP))/(mean(beaconed_coefs$intercept)+mean(beaconed_coefs$rolling_classifierD))
+```
+
+```{r}
+beaconed_coefs = invlogit(coef(beaconed_model_full))
+non_beaconed_coefs = invlogit(coef(non_beaconed_model_full))
+probe_coefs = invlogit(coef(probe_model_full))
+
+write.csv(beaconed_coefs, "beaconed_coefs.csv", row.names=TRUE)
+write.csv(non_beaconed_coefs, "non_beaconed_coefs.csv", row.names=TRUE)
+write.csv(probe_coefs, "probe_coefs.csv", row.names=TRUE)
+```
+
+

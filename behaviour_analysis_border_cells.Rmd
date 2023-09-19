@@ -1,0 +1,191 @@
+```{r}
+# load packages
+# Load packages
+library(LaplacesDemon)
+library(sjPlot)
+library(tidyverse)
+library(broom)
+library(lme4)
+library(ggExtra)
+library(ggthemes)
+library(scales)
+library(Hmisc)
+library(Metrics)
+library(plotrix)
+library(pheatmap) # this package lets you make nice heatmaps
+library(RColorBrewer) # import color palettes
+library(networkD3) # This package lets you make and plot Sankey diagrams
+library(zoo) # some mathematical functions that are useful
+library(tibbletime)
+library(agricolae) # post hoc Tukey test
+library(ggallin) # this is for the pseudolog10_trans function used in coeff plots in Figure2_Analysis
+library(car)
+library(arrow)
+library(cowplot)
+# library(glmmTMB)
+library(furrr)
+library(DHARMa)
+library(effects)
+library(haven) #for reading sav data
+library(jtools) #for transformaing model summaries
+library(ROCR) #for calculating area under the curve (AUC) statistics
+future::plan(multisession)
+
+```
+
+# subset the data acccording to trial type
+```{r}
+
+spatial_firing <- readRDS(file="grid_data.Rda")
+
+spatial_firing$rolling_classifier <- replace(spatial_firing$rolling_classifier, spatial_firing$rolling_classifier == "nan", NA)
+spatial_firing$rolling_classifier <- replace(spatial_firing$rolling_classifier, spatial_firing$rolling_classifier == "N", NA)
+spatial_firing <- na.omit(spatial_firing)
+
+spatial_firing <- spatial_firing[spatial_firing$classifier == "B",]
+
+beaconed_data <- spatial_firing[spatial_firing$trial_type == 0,]
+non_beaconed_data <- spatial_firing[spatial_firing$trial_type == 1,]
+probe_data <- spatial_firing[spatial_firing$trial_type == 2,]
+
+
+beaconed_p_trials <- nrow(subset(beaconed_data, rolling_classifier == "P"))
+beaconed_d_trials <- nrow(subset(beaconed_data, rolling_classifier == "D"))
+non_beaconed_p_trials <- nrow(subset(non_beaconed_data, rolling_classifier == "P"))
+non_beaconed_d_trials <- nrow(subset(non_beaconed_data, rolling_classifier == "D"))
+probe_p_trials <- nrow(subset(probe_data, rolling_classifier == "P"))
+probe_d_trials <- nrow(subset(probe_data, rolling_classifier == "D"))
+
+```
+
+# set up the formulas
+```{r}
+#formula_full <- formula(hit ~ rolling_classifier + (1 + rolling_classifier | mouse_id / session_id / cluster_id))
+#formula_null <- formula(hit ~ (1 + rolling_classifier | mouse_id / session_id / cluster_id))
+
+##formula_full <- formula(hit ~ 1 + rolling_classifier + (1 + rolling_classifier | mouse_id / session_id / cluster_id))
+#formula_null <- formula(hit ~ 1 + (1 + rolling_classifier | mouse_id / session_id / cluster_id))
+
+#uncorrelated
+#formula_full <- formula(hit ~ 1 + rolling_classifier + (1 | mouse_id / session_id / cluster_id) + (0 + rolling_classifier | mouse_id / session_id / cluster_id))
+#formula_null <- formula(hit ~ 1 + (1 | mouse_id / session_id / cluster_id) + (0 + rolling_classifier | mouse_id / session_id / cluster_id))
+
+##uncorrelated with session_id and cluster_id merged
+#formula_full <- formula(hit ~ 1 + rolling_classifier + (1 | mouse_id / session_id_cluster_id) + (0 + #rolling_classifier | mouse_id / session_id_cluster_id))
+#formula_null <- formula(hit ~ 1 + (1 | mouse_id / session_id_cluster_id) + (0 + rolling_classifier | mouse_id / #session_id_cluster_id))
+
+formula_full <- formula(hit ~ rolling_classifier + (1 | mouse_id / session_id / cluster_id) + (0 + rolling_classifier | mouse_id / session_id / cluster_id))
+formula_null <- formula(hit ~ (1 | mouse_id / session_id / cluster_id) + (0 + rolling_classifier | mouse_id / session_id / cluster_id))
+
+```
+
+
+# run glmer for beacoend trials
+```{r}
+beaconed_model_full <- lme4::glmer(formula = formula_full, 
+                      data = beaconed_data,
+                      na.action = na.exclude,
+                      family = binomial(link = "logit"),
+                      control=lme4::glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+beaconed_model_null <- lme4::glmer(formula =formula_null, 
+                      data = beaconed_data,
+                      na.action = na.exclude,
+                      family = binomial(link = "logit"),
+                      control=lme4::glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+```
+
+compare the full model with the null model
+```{r}
+anova(beaconed_model_full,beaconed_model_null)
+```
+# run glmer for nonbeacoend trials
+```{r}
+non_beaconed_model_full <- lme4::glmer(formula = formula_full, 
+                      data = non_beaconed_data,
+                      na.action = na.exclude,
+                      family = binomial(link = "logit"),
+                      control=lme4::glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+non_beaconed_model_null <- lme4::glmer(formula = formula_null, 
+                      data = non_beaconed_data,
+                      na.action = na.exclude,
+                      family = binomial(link = "logit"),
+                      control=lme4::glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+```
+compare the full model with the null model
+```{r}
+anova(non_beaconed_model_full,non_beaconed_model_null)
+```
+
+# run glmer for probe trials
+```{r}
+probe_model_full <- lme4::glmer(formula = formula_full, 
+                      data = probe_data,
+                      na.action = na.exclude,
+                      family = binomial(link = "logit"),
+                      control=lme4::glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+
+probe_model_null <- lme4::glmer(formula = formula_null, 
+                      data = probe_data,
+                      na.action = na.exclude,
+                      family = binomial(link = "logit"),
+                      control=lme4::glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+```
+
+compare the full model with the null model
+```{r}
+anova(probe_model_full,probe_model_null)
+```
+```{r}
+plot_model(beaconed_model_full, show.values = TRUE)
+sjPlot:: tab_model(beaconed_model_full)
+```
+
+```{r}
+plot_model(non_beaconed_model_full, show.values = TRUE)
+sjPlot:: tab_model(non_beaconed_model_full)
+```
+
+```{r}
+plot_model(probe_model_full, show.values = TRUE)
+sjPlot:: tab_model(probe_model_full)
+```
+
+
+#get the coeffients from the models
+```{r}
+beaconed_coefs = invlogit(coef(beaconed_model_full)$mouse_id)
+non_beaconed_coefs = invlogit(coef(non_beaconed_model_full)$mouse_id)
+probe_coefs = invlogit(coef(probe_model_full)$mouse_id)
+
+write.csv(beaconed_coefs, "beaconed_coefs.csv", row.names=TRUE)
+write.csv(non_beaconed_coefs, "non_beaconed_coefs.csv", row.names=TRUE)
+write.csv(probe_coefs, "probe_coefs.csv", row.names=TRUE)
+```
+
+```{r}
+names(beaconed_coefs)[names(beaconed_coefs) == "(Intercept)"] <- "intercept"
+names(non_beaconed_coefs)[names(non_beaconed_coefs) == "(Intercept)"] <- "intercept"
+names(probe_coefs)[names(probe_coefs) == "(Intercept)"] <- "intercept"
+```
+
+```{r}
+plot_model(beaconed_model_full, show.values = TRUE)
+sjPlot:: tab_model(non_beaconed_model_full)
+```
+```{r}
+ (mean(beaconed_coefs$intercept)+mean(beaconed_coefs$rolling_classifierP))/(mean(beaconed_coefs$intercept)+mean(beaconed_coefs$rolling_classifierD))
+```
+
+```{r}
+beaconed_coefs = invlogit(coef(beaconed_model_full))
+non_beaconed_coefs = invlogit(coef(non_beaconed_model_full))
+probe_coefs = invlogit(coef(probe_model_full))
+
+write.csv(beaconed_coefs, "beaconed_coefs.csv", row.names=TRUE)
+write.csv(non_beaconed_coefs, "non_beaconed_coefs.csv", row.names=TRUE)
+write.csv(probe_coefs, "probe_coefs.csv", row.names=TRUE)
+```
+
+
